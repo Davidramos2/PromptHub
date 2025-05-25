@@ -16,17 +16,20 @@ export interface Prompt {
   updated_at: string;
 }
 
-// Local storage fallback for guests
-const LOCAL_STORAGE_KEY = "promptup-prompts";
-
+// Local storage fallback for guests - now compatible with Prompt interface
 interface LocalPrompt {
   id: string;
+  user_id: string; // Will be 'guest' for local storage
   title: string;
-  description: string;
+  description: string | null;
   content: string;
   is_public: boolean;
   created_at: string;
+  updated_at: string;
 }
+
+// Local storage fallback for guests
+const LOCAL_STORAGE_KEY = "promptup-prompts";
 
 export function usePrompts() {
   const { user } = useAuth();
@@ -103,14 +106,17 @@ export function usePrompts() {
         if (error) throw error;
         return data;
       } else {
-        // Save to local storage
+        // Save to local storage with compatible structure
+        const now = new Date().toISOString();
         const newPrompt: LocalPrompt = {
           id: Date.now().toString(),
+          user_id: 'guest',
           title: promptData.title,
           description: promptData.description,
           content: promptData.content,
           is_public: promptData.is_public || false,
-          created_at: new Date().toISOString(),
+          created_at: now,
+          updated_at: now,
         };
         setLocalPrompts(prev => [newPrompt, ...prev]);
         return newPrompt;
@@ -153,12 +159,14 @@ export function usePrompts() {
         return data;
       } else {
         // Update in local storage
+        const now = new Date().toISOString();
+        const updatedPrompt = { ...updates, updated_at: now };
         setLocalPrompts(prev => 
           prev.map(prompt => 
-            prompt.id === id ? { ...prompt, ...updates } : prompt
+            prompt.id === id ? { ...prompt, ...updatedPrompt } : prompt
           )
         );
-        return { id, ...updates };
+        return { id, ...updatedPrompt };
       }
     },
     onSuccess: () => {
@@ -238,8 +246,11 @@ export function usePrompts() {
     },
   });
 
+  // Cast local prompts to Prompt type for compatibility
+  const userPromptsFormatted: Prompt[] = user ? userPrompts : localPrompts as Prompt[];
+
   return {
-    userPrompts: user ? userPrompts : localPrompts,
+    userPrompts: userPromptsFormatted,
     publicPrompts,
     isLoading: userPromptsLoading || publicPromptsLoading,
     createPrompt: createPromptMutation.mutate,
